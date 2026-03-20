@@ -1,0 +1,45 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+
+# Go
+server/tictactoe
+server/tictactoe.so
+server/modules/tictactoe.so
+
+# Flutter / Dart
+client/.dart_tool/
+client/.flutter-plugins
+client/.flutter-plugins-dependencies
+client/.pub-cache/
+client/.pub/
+client/build/
+client/.packages
+client/pubspec.lock
+
+# Nakama data (local dev)
+nakama/
+
+# Docker
+postgres_data/
+
+# Environment
+.env
+*.env.local
+
+# Claude
+.claude/
+
+# Planning / assignment files (not part of deliverable)
+PlanAndSetup/
+plan.txt
+newPlan.txt
+issues.txt
+*.pdf

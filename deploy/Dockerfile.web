@@ -1,0 +1,30 @@
+# Multi-stage: build Flutter web, serve with nginx.
+# Usage: docker build -f deploy/Dockerfile.web -t ttt-web .
+#
+# Build args:
+#   NAKAMA_HOST  — Nakama server hostname (default: localhost)
+#   NAKAMA_PORT  — Nakama HTTP port (default: 7350)
+#   NAKAMA_SSL   — Use SSL (default: false)
+
+FROM ghcr.io/cirruslabs/flutter:stable AS builder
+
+WORKDIR /app
+COPY client/ .
+
+ARG NAKAMA_HOST=localhost
+ARG NAKAMA_PORT=7350
+ARG NAKAMA_SSL=false
+
+RUN flutter pub get && \
+    flutter build web --release \
+      --dart-define=NAKAMA_HOST=$NAKAMA_HOST \
+      --dart-define=NAKAMA_HTTP_PORT=$NAKAMA_PORT \
+      --dart-define=NAKAMA_SSL=$NAKAMA_SSL
+
+# Stage 2: Serve with nginx
+FROM nginx:alpine
+
+COPY --from=builder /app/build/web /usr/share/nginx/html
+COPY deploy/nginx.conf /etc/nginx/conf.d/default.conf
+
+EXPOSE 80

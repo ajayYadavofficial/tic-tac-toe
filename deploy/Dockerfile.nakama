@@ -1,0 +1,18 @@
+# Multi-stage build: compile Go plugin for Linux, then copy into Nakama image.
+# Usage: docker build -f deploy/Dockerfile.nakama -t ttt-nakama ./server
+
+# Stage 1: Build the Go plugin using the official plugin builder
+FROM heroiclabs/nakama-pluginbuilder:3.22.0 AS builder
+
+WORKDIR /backend
+COPY go.mod go.sum ./
+COPY vendor/ vendor/
+COPY main.go ./
+COPY internal/ internal/
+
+RUN go build -buildmode=plugin -trimpath -o /backend/tictactoe.so .
+
+# Stage 2: Copy plugin into the Nakama runtime image
+FROM heroiclabs/nakama:3.22.0
+
+COPY --from=builder /backend/tictactoe.so /nakama/data/modules/tictactoe.so
