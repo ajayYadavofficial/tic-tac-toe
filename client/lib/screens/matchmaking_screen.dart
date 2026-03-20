@@ -47,6 +47,7 @@ class _MatchmakingScreenState extends State<MatchmakingScreen> {
   Future<void> _startMatchmaking() async {
     setState(() { _error = null; });
     try {
+      debugPrint('Matchmaking: template=${widget.template.name} id=${widget.template.id} variant=${widget.template.variant} turnSecs=${widget.template.turnSecs}');
       final ticket = await _client.addToMatchmaker(templateId: widget.template.id);
       setState(() { _ticket = ticket.ticket; });
 

@@ -71,6 +71,9 @@ func (h *Handler) MatchJoin(ctx context.Context, logger runtime.Logger, db *sql.
 	for _, p := range presences {
 		uid := p.GetUserId()
 
+		// Refresh last-active timestamp so the cleanup worker won't reap this account.
+		TouchLastActive(ctx, logger, nk, uid)
+
 		// Clear any disconnect record for a returning player.
 		delete(next.Disconnected, uid)
 

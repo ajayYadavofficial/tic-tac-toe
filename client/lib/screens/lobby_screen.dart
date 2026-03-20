@@ -22,6 +22,7 @@ class _LobbyScreenState extends State<LobbyScreen> with WidgetsBindingObserver {
   List<GameTemplate> _templates = [];
   String _username = '';
   PlayerStats _stats = const PlayerStats();
+  List<LeaderboardEntry> _leaderboard = [];
   bool _loading = true;
   bool _loggingOut = false;
   String? _error;
@@ -60,12 +61,14 @@ class _LobbyScreenState extends State<LobbyScreen> with WidgetsBindingObserver {
       final results = await Future.wait([
         _client.listTemplates(),
         _client.getPlayerStats(),
+        _client.getLeaderboard(),
       ]);
       if (!mounted) return;
       setState(() {
         _username = prefs.getString('username') ?? '';
         _templates = results[0] as List<GameTemplate>;
         _stats = results[1] as PlayerStats;
+        _leaderboard = results[2] as List<LeaderboardEntry>;
         _loading = false;
       });
     } catch (e) {
@@ -175,7 +178,8 @@ class _LobbyScreenState extends State<LobbyScreen> with WidgetsBindingObserver {
                         ],
                       ),
                     )
-                  : Column(
+                  : SingleChildScrollView(
+                      child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         if (_username.isNotEmpty) ...[
@@ -190,6 +194,9 @@ class _LobbyScreenState extends State<LobbyScreen> with WidgetsBindingObserver {
                           ),
                           const SizedBox(height: 16),
                           _StatsCard(stats: _stats),
+                          const SizedBox(height: 16),
+                          if (_leaderboard.isNotEmpty)
+                            _LeaderboardCard(entries: _leaderboard),
                           const SizedBox(height: 24),
                         ],
                         const Text(
@@ -202,7 +209,7 @@ class _LobbyScreenState extends State<LobbyScreen> with WidgetsBindingObserver {
                               onPlay: () => _playTemplate(t),
                             )),
                       ],
-                    ),
+                    )),
         ),
       ),
     );
@@ -316,6 +323,88 @@ class _StatItem extends StatelessWidget {
         const SizedBox(height: 2),
         Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
       ],
+    );
+  }
+}
+
+class _LeaderboardCard extends StatelessWidget {
+  final List<LeaderboardEntry> entries;
+
+  const _LeaderboardCard({required this.entries});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.leaderboard, size: 20, color: Colors.amber.shade700),
+                const SizedBox(width: 8),
+                const Text(
+                  'Leaderboard',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            ...entries.take(5).map((e) => _LeaderboardRow(entry: e)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _LeaderboardRow extends StatelessWidget {
+  final LeaderboardEntry entry;
+
+  const _LeaderboardRow({required this.entry});
+
+  @override
+  Widget build(BuildContext context) {
+    final rankColor = switch (entry.rank) {
+      1 => Colors.amber.shade700,
+      2 => Colors.grey.shade500,
+      3 => Colors.brown.shade400,
+      _ => Colors.transparent,
+    };
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 28,
+            child: Text(
+              '#${entry.rank}',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: rankColor != Colors.transparent ? rankColor : null,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              entry.username.isNotEmpty ? entry.username : 'Anonymous',
+              style: const TextStyle(fontSize: 14),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          Text(
+            '${entry.score}',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 14,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

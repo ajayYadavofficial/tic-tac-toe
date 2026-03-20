@@ -61,6 +61,9 @@ func InitModule(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runti
 		return err
 	}
 
+	// Start background cleanup worker for stale disconnected accounts.
+	match.RegisterCleanupWorker(ctx, logger, db, nk)
+
 	logger.Info("Tic-Tac-Toe plugin initialized successfully")
 	return nil
 }
@@ -202,18 +205,17 @@ func rpcGetLeaderboard(ctx context.Context, logger runtime.Logger, db *sql.DB, n
 	return string(resp), nil
 }
 
-// rpcReleaseUsername resets the caller's username to their user ID,
-// freeing the human-readable name for other accounts. Called on logout.
+// rpcReleaseUsername frees the username AND immediately deletes the account
+// (stats, leaderboard entry, and the Nakama account itself). Called on logout.
 func rpcReleaseUsername(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, payload string) (string, error) {
 	userID, ok := ctx.Value(runtime.RUNTIME_CTX_USER_ID).(string)
 	if !ok || userID == "" {
 		return "", runtime.NewError("unauthenticated", 16)
 	}
-	// Reset username to user ID (guaranteed unique) and clear display name.
-	if err := nk.AccountUpdateId(ctx, userID, userID, nil, "", "", "", "", ""); err != nil {
-		logger.Error("failed to release username for %s: %v", userID, err)
-		return "", err
-	}
+	// Delete stats, leaderboard entry, and account.
+	match.DeleteAccount(ctx, logger, nk, userID)
+	logger.Info("Account %s deleted on logout", userID)
+
 	resp, _ := json.Marshal(map[string]string{"status": "ok"})
 	return string(resp), nil
 }

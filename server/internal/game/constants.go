@@ -53,4 +53,13 @@ const (
 
 	// Nakama Leaderboard ID
 	LeaderboardID = "global_score"
+
+	// Account cleanup — configurable interval in seconds.
+	// The worker runs every CleanupIntervalSec and removes stale accounts
+	// whose last-active timestamp is older than CleanupIntervalSec.
+	CleanupIntervalSec = 1200 // 20 minutes
+
+	// Storage keys for last-active tracking
+	LastActiveCollection = "activity"
+	LastActiveKey        = "last_active"
 )
