@@ -20,16 +20,26 @@ func (h *Handler) MatchInit(ctx context.Context, logger runtime.Logger, db *sql.
 	state := game.NewMatchState()
 
 	// Read templateId from matchmaker params to configure the game mode.
+	// Nakama preserves Go types in MatchCreate params (no JSON round-trip),
+	// so the value may arrive as int, float64, or other numeric type.
 	if tidRaw, ok := params["templateId"]; ok {
-		if tidFloat, ok := tidRaw.(float64); ok {
-			tid := int(tidFloat)
-			if tmpl := game.TemplateByID(tid); tmpl != nil {
-				state.GameMode = tmpl.Variant
-				if tmpl.TurnSecs > 0 {
-					state.TurnTimer = tmpl.TurnSecs
-				}
-				logger.Info("Match created with template %d (%s), turnSecs=%d", tid, tmpl.Variant, tmpl.TurnSecs)
+		var tid int
+		switch v := tidRaw.(type) {
+		case int:
+			tid = v
+		case float64:
+			tid = int(v)
+		case int64:
+			tid = int(v)
+		default:
+			logger.Warn("templateId has unexpected type %T, defaulting to Classic", tidRaw)
+		}
+		if tmpl := game.TemplateByID(tid); tmpl != nil {
+			state.GameMode = tmpl.Variant
+			if tmpl.TurnSecs > 0 {
+				state.TurnTimer = tmpl.TurnSecs
 			}
+			logger.Info("Match created with template %d (%s), turnSecs=%d", tid, tmpl.Variant, tmpl.TurnSecs)
 		}
 	}
 

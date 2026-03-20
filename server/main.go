@@ -66,7 +66,19 @@ func InitModule(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runti
 }
 
 func rpcCreateMatch(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, payload string) (string, error) {
-	matchID, err := nk.MatchCreate(ctx, "tic_tac_toe", map[string]interface{}{})
+	// Parse optional templateId from request payload; default to Classic (1).
+	templateId := 1
+	if payload != "" {
+		var req struct {
+			TemplateID int `json:"template_id"`
+		}
+		if err := json.Unmarshal([]byte(payload), &req); err == nil && req.TemplateID > 0 {
+			templateId = req.TemplateID
+		}
+	}
+	matchID, err := nk.MatchCreate(ctx, "tic_tac_toe", map[string]interface{}{
+		"templateId": templateId,
+	})
 	if err != nil {
 		logger.Error("failed to create match: %v", err)
 		return "", err

@@ -1,6 +1,9 @@
 package game
 
-import "fmt"
+import (
+	"fmt"
+	"time"
+)
 
 // winLines are all winning combinations on a 3×3 board.
 var winLines = [8][3]int{
@@ -31,6 +34,12 @@ func ValidateMove(state *MatchState, userID string, pos int) error {
 	}
 	if mark != state.Turn {
 		return fmt.Errorf("not your turn")
+	}
+	// Reject moves after the turn timer has expired.
+	if state.TurnTimer > 0 && state.TurnStartedAt > 0 {
+		if time.Now().Unix()-state.TurnStartedAt >= int64(state.TurnTimer) {
+			return fmt.Errorf("turn time expired")
+		}
 	}
 	return nil
 }
