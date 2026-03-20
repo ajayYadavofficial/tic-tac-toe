@@ -53,15 +53,12 @@ services:
     restart: unless-stopped
 
   ttt-web:
-    image: nginx:alpine
+    image: ttt-web:latest
     container_name: ttt-web
     depends_on:
       - ttt-nakama
     ports:
       - "80:80"
-    volumes:
-      - ../client/build/web:/usr/share/nginx/html:ro
-      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
     restart: unless-stopped
 
 volumes:
