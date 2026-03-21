@@ -11,7 +11,7 @@ import (
 	"github.com/ajayyadav/tictactoe/internal/game"
 )
 
-const disconnectGracePeriod = 30 // seconds before a disconnected player forfeits
+// No grace period — when a player leaves, the match ends instantly.
 
 // Handler implements the Nakama runtime.Match interface.
 type Handler struct{}
@@ -133,17 +133,37 @@ func (h *Handler) MatchLeave(ctx context.Context, logger runtime.Logger, db *sql
 		return s
 	}
 
-	next := *s
-	if next.Disconnected == nil {
-		next.Disconnected = make(map[string]int64)
-	}
-	now := time.Now().Unix()
+	// Instant forfeit — no grace period.
 	for _, p := range presences {
 		uid := p.GetUserId()
-		next.Disconnected[uid] = now
-		logger.Info("Player %s disconnected — grace period started", uid)
+		logger.Info("Player %s left — instant forfeit", uid)
+
+		next := *s
+		next.Status = game.StatusGameOver
+		if uid == next.PlayerX {
+			next.Winner = next.PlayerO
+		} else {
+			next.Winner = next.PlayerX
+		}
+
+		broadcastState(dispatcher, logger, &next)
+		rm := game.ResultMsg{
+			Winner:      next.Winner,
+			Result:      game.ResultWin,
+			Board:       next.Board,
+			PlayerX:     next.PlayerX,
+			PlayerO:     next.PlayerO,
+			PlayerXName: next.PlayerXName,
+			PlayerOName: next.PlayerOName,
+		}
+		data, _ := json.Marshal(rm)
+		if err := dispatcher.BroadcastMessage(game.OpCodeResult, data, nil, nil, true); err != nil {
+			logger.Error("failed to broadcast forfeit result: %v", err)
+		}
+		OnMatchEnd(ctx, logger, nk, db, &next)
+		return nil // terminate match
 	}
-	return &next
+	return s
 }
 
 // SAFETY: Nakama guarantees MatchLoop runs single-threaded per match.
@@ -152,37 +172,36 @@ func (h *Handler) MatchLeave(ctx context.Context, logger runtime.Logger, db *sql
 func (h *Handler) MatchLoop(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, dispatcher runtime.MatchDispatcher, tick int64, state interface{}, messages []runtime.MatchData) interface{} {
 	s := state.(*game.MatchState)
 
-	// --- Disconnection grace period check ---
-	if s.Status == game.StatusPlaying && len(s.Disconnected) > 0 {
-		now := time.Now().Unix()
-		for uid, disconnectAt := range s.Disconnected {
-			if now-disconnectAt >= disconnectGracePeriod {
-				logger.Info("Player %s exceeded grace period — forfeiting", uid)
-				next := *s
-				next.Status = game.StatusGameOver
-				if uid == next.PlayerX {
-					next.Winner = next.PlayerO
-				} else {
-					next.Winner = next.PlayerX
-				}
-				broadcastState(dispatcher, logger, &next)
-				rm := game.ResultMsg{
-					Winner:      next.Winner,
-					Result:      game.ResultWin,
-					Board:       next.Board,
-					PlayerX:     next.PlayerX,
-					PlayerO:     next.PlayerO,
-					PlayerXName: next.PlayerXName,
-					PlayerOName: next.PlayerOName,
-				}
-				data, _ := json.Marshal(rm)
-				if err := dispatcher.BroadcastMessage(game.OpCodeResult, data, nil, nil, true); err != nil {
-					logger.Error("failed to broadcast forfeit result: %v", err)
-				}
-				OnMatchEnd(ctx, logger, nk, db, &next)
-				return nil // terminate match
-			}
+	// --- Handle resign opcode (back button / explicit leave) ---
+	for _, msg := range messages {
+		if msg.GetOpCode() != game.OpCodeResign {
+			continue
 		}
+		uid := msg.GetUserId()
+		logger.Info("Player %s resigned", uid)
+		next := *s
+		next.Status = game.StatusGameOver
+		if uid == next.PlayerX {
+			next.Winner = next.PlayerO
+		} else {
+			next.Winner = next.PlayerX
+		}
+		broadcastState(dispatcher, logger, &next)
+		rm := game.ResultMsg{
+			Winner:      next.Winner,
+			Result:      game.ResultWin,
+			Board:       next.Board,
+			PlayerX:     next.PlayerX,
+			PlayerO:     next.PlayerO,
+			PlayerXName: next.PlayerXName,
+			PlayerOName: next.PlayerOName,
+		}
+		data, _ := json.Marshal(rm)
+		if err := dispatcher.BroadcastMessage(game.OpCodeResult, data, nil, nil, true); err != nil {
+			logger.Error("failed to broadcast resign result: %v", err)
+		}
+		OnMatchEnd(ctx, logger, nk, db, &next)
+		return nil
 	}
 
 	// --- Process incoming moves BEFORE timer check ---

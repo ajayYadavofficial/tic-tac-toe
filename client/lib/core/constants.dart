@@ -14,4 +14,5 @@ class AppConstants {
   static const int opCodeState  = 2;
   static const int opCodeResult = 3;
   static const int opCodeError  = 4;
+  static const int opCodeResign = 5;
 }

@@ -35,6 +35,7 @@ class NakamaGameClient {
   bool _reconnecting = false;
   bool _intentionalDisconnect = false;
   int _reconnectAttempt = 0;
+  int _socketGeneration = 0; // guards against stale onDone callbacks
   Timer? _reconnectTimer;
   static const _maxReconnectAttempt = 6; // max ~32s backoff
   static const _baseReconnectDelay = Duration(seconds: 1);
@@ -193,10 +194,10 @@ class NakamaGameClient {
     await prefs.remove(_keyRefreshToken);
   }
 
-  /// Save the username to SharedPreferences.
+  /// Save the username to SharedPreferences (stored lowercase).
   Future<void> persistUsername(String username) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_keyUsername, username);
+    await prefs.setString(_keyUsername, username.toLowerCase());
   }
 
   /// Read the saved username from SharedPreferences.
@@ -265,13 +266,15 @@ class NakamaGameClient {
 
     await ensureValidSession();
 
-    // Close any existing socket before creating a new one.
-    // close() also triggers _clients.clear() in the nakama library,
-    // so the next init() will create a fresh WebSocket connection.
+    // Mark intentional so the old socket's onDone callback won't trigger reconnect.
+    _intentionalDisconnect = true;
     _cancelReconnect();
     try { await _socket?.close(); } catch (_) {}
     _socket = null;
+
+    // Reset AFTER closing the old socket so the NEW socket's onDone will reconnect.
     _intentionalDisconnect = false;
+    final gen = ++_socketGeneration;
 
     _socket = NakamaWebsocketClient.init(
       host: AppConstants.nakamaHost,
@@ -279,14 +282,16 @@ class NakamaGameClient {
       port: AppConstants.nakamaHttpPort,
       token: _session!.token,
       onDone: () {
-        debugPrint('WebSocket closed (intentional=$_intentionalDisconnect)');
+        debugPrint('WebSocket closed (gen=$gen, current=$_socketGeneration, intentional=$_intentionalDisconnect)');
+        if (gen != _socketGeneration) return; // stale callback from old socket
         _connectionStatusController.add(false);
         if (!_intentionalDisconnect) {
           _scheduleReconnect();
         }
       },
       onError: (error) {
-        debugPrint('WebSocket error: $error');
+        debugPrint('WebSocket error (gen=$gen): $error');
+        if (gen != _socketGeneration) return; // stale callback
         _connectionStatusController.add(false);
         if (!_intentionalDisconnect) {
           _scheduleReconnect();
@@ -403,12 +408,13 @@ class NakamaGameClient {
   }
 
   /// RPC: set the player's display name (nickname).
+  /// Username is normalized to lowercase for case-insensitive uniqueness.
   Future<void> updateUsername(String username) async {
     await ensureValidSession();
     await _client.rpc(
       session: _session!,
       id: 'update_username',
-      payload: jsonEncode({'username': username}),
+      payload: jsonEncode({'username': username.toLowerCase()}),
     );
   }
 
@@ -465,6 +471,20 @@ class NakamaGameClient {
       opCode: AppConstants.opCodeMove,
       data: utf8.encode(payload),
     );
+  }
+
+  /// Send a resign message (OpCode 5) — player is leaving the match.
+  void sendResign(String matchId) {
+    _socket!.sendMatchData(
+      matchId: matchId,
+      opCode: AppConstants.opCodeResign,
+      data: utf8.encode('{}'),
+    );
+  }
+
+  /// Leave a match via WebSocket.
+  Future<void> leaveMatch(String matchId) async {
+    await _socket!.leaveMatch(matchId);
   }
 
   Future<void> dispose() async {

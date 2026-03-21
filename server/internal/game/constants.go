@@ -9,7 +9,7 @@ const (
 	OpCodeState  = 2 // server → client: broadcast game state
 	OpCodeResult = 3 // server → client: game over with winner/draw
 	OpCodeError  = 4 // server → client: invalid move or error
-	// OpCodeTimer = 5  (reserved for future timer feature)
+	OpCodeResign = 5 // client → server: player resigns (back button / leave)
 
 	// Board marks
 	MarkEmpty = ""

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"strings"
 
 	"github.com/heroiclabs/nakama-common/runtime"
 
@@ -136,13 +137,16 @@ func rpcUpdateUsername(ctx context.Context, logger runtime.Logger, db *sql.DB, n
 	if err := json.Unmarshal([]byte(payload), &req); err != nil || req.Username == "" {
 		return "", runtime.NewError("username is required", 3)
 	}
+	// Normalize to lowercase so "Kala" and "kAlA" are the same.
+	req.Username = strings.ToLower(req.Username)
+
 	userID, ok := ctx.Value(runtime.RUNTIME_CTX_USER_ID).(string)
 	if !ok || userID == "" {
 		return "", runtime.NewError("unauthenticated", 16)
 	}
 	// If the user already owns this username, return success — no update needed.
 	if accounts, err := nk.AccountGetId(ctx, userID); err == nil {
-		if accounts.GetUser().GetUsername() == req.Username {
+		if strings.EqualFold(accounts.GetUser().GetUsername(), req.Username) {
 			resp, _ := json.Marshal(map[string]string{"status": "ok"})
 			return string(resp), nil
 		}
