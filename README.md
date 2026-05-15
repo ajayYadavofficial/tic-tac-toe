@@ -6,8 +6,8 @@ Real-time multiplayer Tic-Tac-Toe built with **Nakama** (game server), **Go** (s
 
 | Resource | URL |
 |----------|-----|
-| Game (Web) | http://3.110.48.57 |
-| Nakama Server | http://3.110.48.57/v2 (proxied via nginx) |
+| Game (Web) | http://15.207.111.185/ |
+| Nakama Server | http://15.207.111.185/v2 (proxied via nginx) |
 | Source Code | https://github.com/ajayYadavofficial/tic-tac-toe |
 
 > The game is deployed on AWS EC2 (ap-south-1, Mumbai). Open two browser tabs to play against yourself, or share the link with a friend.
